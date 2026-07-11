@@ -32,13 +32,11 @@
                 <input type="email" class="form-control" id="userEmail" required>
             </div>
             <div class="mb-4">
-                <label class="form-label fw-bold">Preferred Language</label>
+                <label class="form-label fw-bold">Choose the model</label>
                 <select class="form-select" id="userLanguage" required>
-                    <option value="" disabled selected>Select your language...</option>
-                    <option value="English">English</option>
-                    <option value="Spanish">Spanish</option>
-                    <option value="French">French</option>
-                    <option value="Other">Other</option>
+                    <option value="" disabled selected>Select your model...</option>
+                    <option value="matcha">Matcha TTS</option>
+                    <option value="f5tts">F5TTS</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary w-100 py-2">Start Evaluation</button>
@@ -72,7 +70,7 @@
 <script>
     // --- CONFIGURATION ---
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxw9TP4C-ZTtCe9cIrVIm0qpXhwYgLFCcfILKLlR6PyRayd33a-E2YvLfxL2EKjNEsrqA/exec"; 
-    const MODELS = ["model A", "model B", "model C"];
+    const MODELS = ["baseline_cutoff", "baseline_full", "rewt_full"];
     const NUM_SAMPLES = 1;
 
     // --- APP STATE ---
