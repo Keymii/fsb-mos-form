@@ -185,7 +185,7 @@
                 <div class="btn-group w-100" role="group">
                     ${[1, 2, 3, 4, 5].map(val => `
                         <input type="radio" class="btn-check" name="q_${idx}" id="q_${idx}_${val}" value="${val}" required>
-                        <label class="btn btn-outline-primary" for="q_${idx}_${val}">${val}</label>
+                        <label class="btn btn-outline-primary" for="q_${idx}_${val}">${val}${val==1 ? ' (Low)' : val==5 ? ' (High)' : ''}</label>
                     `).join('')}
                 </div>
             `;
