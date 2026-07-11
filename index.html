@@ -43,6 +43,13 @@
         </form>
     </div>
 
+    <!-- INTERMEDIATE PAGE: Buffering Spinner -->
+    <div id="page-loading" class="hidden text-center py-5">
+        <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+        <h5 class="mb-1">Preparing your evaluation...</h5>
+        <p class="text-muted mb-0">Loading audio set and questions</p>
+    </div>
+
     <!-- PAGE 2 to N: Audio Evaluation -->
     <div id="page-evaluation" class="hidden">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -71,6 +78,10 @@
     // --- CONFIGURATION ---
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxw9TP4C-ZTtCe9cIrVIm0qpXhwYgLFCcfILKLlR6PyRayd33a-E2YvLfxL2EKjNEsrqA/exec"; 
     const MODELS = ["baseline_cutoff", "baseline_full", "rewt_full"];
+    const MANIFEST_BY_LANGUAGE = {
+        matcha: 'matcha_manifest.json',
+        f5tts: 'f5tts_manifest.json'
+    };
     const NUM_SAMPLES = 1;
 
     // --- APP STATE ---
@@ -81,6 +92,7 @@
 
     // --- DOM ELEMENTS ---
     const pageUser = document.getElementById('page-user-info');
+    const pageLoading = document.getElementById('page-loading');
     const pageEval = document.getElementById('page-evaluation');
     const pageThanks = document.getElementById('page-thank-you');
     const questionsContainer = document.getElementById('questions-container');
@@ -89,13 +101,22 @@
     const evalForm = document.getElementById('evaluation-form');
 
     // --- INITIALIZATION ---
-    async function loadData() {
+    async function loadData(language) {
         try {
+            const manifestFile = MANIFEST_BY_LANGUAGE[language];
+            if (!manifestFile) {
+                throw new Error('Invalid model selection.');
+            }
+
             // Load both JSON files concurrently
             const [manifestRes, questionsRes] = await Promise.all([
-                fetch('manifest.json'),
+                fetch(manifestFile),
                 fetch('questions.json')
             ]);
+
+            if (!manifestRes.ok || !questionsRes.ok) {
+                throw new Error('Failed to fetch evaluation files.');
+            }
             
             const manifest = await manifestRes.json();
             questionsData = await questionsRes.json();
@@ -112,25 +133,40 @@
             // Shuffle the final combined playlist so models are mixed
             playlist = selectedClips.sort(() => 0.5 - Math.random());
 
+            return true;
+
         } catch (error) {
             console.error("Error loading JSON data:", error);
-            alert("Failed to load evaluation data. Please refresh the page.");
+            alert("Failed to load evaluation data. Please try again.");
+            return false;
         }
     }
-
-    // Run loader on startup
-    window.addEventListener('DOMContentLoaded', loadData);
 
     // --- EVENT LISTENERS ---
     
     // 1. Handle User Info Submission
-    document.getElementById('user-form').addEventListener('submit', (e) => {
+    document.getElementById('user-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         sessionData.name = document.getElementById('userName').value.trim();
         sessionData.email = document.getElementById('userEmail').value.trim();
         sessionData.language = document.getElementById('userLanguage').value;
+
+        // Reset state for a fresh run before loading selected manifest
+        sessionData.results = [];
+        playlist = [];
+        currentIndex = 0;
         
         pageUser.classList.add('hidden');
+        pageLoading.classList.remove('hidden');
+
+        const loaded = await loadData(sessionData.language);
+        if (!loaded || playlist.length === 0) {
+            pageLoading.classList.add('hidden');
+            pageUser.classList.remove('hidden');
+            return;
+        }
+
+        pageLoading.classList.add('hidden');
         pageEval.classList.remove('hidden');
         renderCurrentAudio();
     });
