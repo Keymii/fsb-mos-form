@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subjective Audio Evaluation</title>
+    <!-- Lightweight UI library (Bootstrap 5) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .card-container { width: 100%; max-width: 650px; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .hidden { display: none !important; }
+        .question-block { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #eee; }
+        .question-block:last-child { border-bottom: none; }
+        audio { width: 100%; margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body>
+
+<div class="card-container">
+    <!-- PAGE 1: User Info Form -->
+    <div id="page-user-info">
+        <h2 class="mb-4">Audio Evaluation Study</h2>
+        <p class="text-muted mb-4">Please fill in your details to begin the listening test. You will be rating several short audio clips.</p>
+        <form id="user-form">
+            <div class="mb-3">
+                <label class="form-label fw-bold">Full Name</label>
+                <input type="text" class="form-control" id="userName" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Email</label>
+                <input type="email" class="form-control" id="userEmail" required>
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-bold">Preferred Language</label>
+                <select class="form-select" id="userLanguage" required>
+                    <option value="" disabled selected>Select your language...</option>
+                    <option value="English">English</option>
+                    <option value="Spanish">Spanish</option>
+                    <option value="French">French</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2">Start Evaluation</button>
+        </form>
+    </div>
+
+    <!-- PAGE 2 to N: Audio Evaluation -->
+    <div id="page-evaluation" class="hidden">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="m-0">Evaluate Audio</h4>
+            <span class="badge bg-secondary" id="progress-tracker">1 / 21</span>
+        </div>
+        
+        <audio id="audio-player" controls controlsList="nodownload"></audio>
+
+        <form id="evaluation-form">
+            <div id="questions-container">
+                <!-- Questions injected here dynamically -->
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 mt-3" id="next-btn">Submit & Next</button>
+        </form>
+    </div>
+
+    <!-- FINAL PAGE: Thank You -->
+    <div id="page-thank-you" class="hidden text-center">
+        <h2 class="mb-3 text-success">Evaluation Complete!</h2>
+        <p class="text-muted">Your responses have been successfully submitted. Thank you for your time.</p>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxw9TP4C-ZTtCe9cIrVIm0qpXhwYgLFCcfILKLlR6PyRayd33a-E2YvLfxL2EKjNEsrqA/exec"; 
+    const MODELS = ["model A", "model B", "model C"];
+    const NUM_SAMPLES = 1;
+
+    // --- APP STATE ---
+    let sessionData = { name: "", email: "", language: "", results: [] };
+    let playlist = [];
+    let questionsData = [];
+    let currentIndex = 0;
+
+    // --- DOM ELEMENTS ---
+    const pageUser = document.getElementById('page-user-info');
+    const pageEval = document.getElementById('page-evaluation');
+    const pageThanks = document.getElementById('page-thank-you');
+    const questionsContainer = document.getElementById('questions-container');
+    const audioPlayer = document.getElementById('audio-player');
+    const progressTracker = document.getElementById('progress-tracker');
+    const evalForm = document.getElementById('evaluation-form');
+
+    // --- INITIALIZATION ---
+    async function loadData() {
+        try {
+            // Load both JSON files concurrently
+            const [manifestRes, questionsRes] = await Promise.all([
+                fetch('manifest.json'),
+                fetch('questions.json')
+            ]);
+            
+            const manifest = await manifestRes.json();
+            questionsData = await questionsRes.json();
+            
+            // Logic: Select 7 uniform random samples per model
+            let selectedClips = [];
+            MODELS.forEach(modelName => {
+                let modelClips = manifest.filter(item => item.model === modelName);
+                // Shuffle array securely
+                modelClips = modelClips.sort(() => 0.5 - Math.random());
+                selectedClips = selectedClips.concat(modelClips.slice(0, NUM_SAMPLES));
+            });
+
+            // Shuffle the final combined playlist so models are mixed
+            playlist = selectedClips.sort(() => 0.5 - Math.random());
+
+        } catch (error) {
+            console.error("Error loading JSON data:", error);
+            alert("Failed to load evaluation data. Please refresh the page.");
+        }
+    }
+
+    // Run loader on startup
+    window.addEventListener('DOMContentLoaded', loadData);
+
+    // --- EVENT LISTENERS ---
+    
+    // 1. Handle User Info Submission
+    document.getElementById('user-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        sessionData.name = document.getElementById('userName').value.trim();
+        sessionData.email = document.getElementById('userEmail').value.trim();
+        sessionData.language = document.getElementById('userLanguage').value;
+        
+        pageUser.classList.add('hidden');
+        pageEval.classList.remove('hidden');
+        renderCurrentAudio();
+    });
+
+    // 2. Handle Evaluation Submission
+    evalForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Extract scores from the clicked buttons
+        let currentScores = {};
+        questionsData.forEach((q, idx) => {
+            const selectedRadio = document.querySelector(`input[name="q_${idx}"]:checked`);
+            if (selectedRadio) {
+                currentScores[q.title] = parseInt(selectedRadio.value);
+            }
+        });
+
+        // Store the result payload for this audio
+        sessionData.results.push({
+            audio_id: playlist[currentIndex].id,
+            scores: currentScores
+        });
+
+        currentIndex++;
+
+        if (currentIndex < playlist.length) {
+            renderCurrentAudio();
+        } else {
+            await finishAndSubmit();
+        }
+    });
+
+    // --- RENDER LOGIC ---
+    function renderCurrentAudio() {
+        const currentAudio = playlist[currentIndex];
+        progressTracker.innerText = `${currentIndex + 1} / ${playlist.length}`;
+        
+        // Load Audio
+        audioPlayer.src = currentAudio.url;
+        audioPlayer.load();
+
+        // Render Questions UI with Clickable Button Blocks
+        questionsContainer.innerHTML = '';
+        questionsData.forEach((q, idx) => {
+            const block = document.createElement('div');
+            block.className = 'question-block';
+            block.innerHTML = `
+                <label class="form-label fw-bold">${q.title}</label>
+                <p class="text-muted small mb-2">${q.description}</p>
+                <div class="btn-group w-100" role="group">
+                    ${[1, 2, 3, 4, 5].map(val => `
+                        <input type="radio" class="btn-check" name="q_${idx}" id="q_${idx}_${val}" value="${val}" required>
+                        <label class="btn btn-outline-primary" for="q_${idx}_${val}">${val}</label>
+                    `).join('')}
+                </div>
+            `;
+            questionsContainer.appendChild(block);
+        });
+    }
+
+    // --- FINAL SUBMISSION ---
+    async function finishAndSubmit() {
+        pageEval.classList.add('hidden');
+        
+        // Show loading state temporarily
+        pageThanks.classList.remove('hidden');
+        pageThanks.innerHTML = `<h3 class="text-muted">Saving your responses...</h3>`;
+
+        try {
+            await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'cors',
+                redirect: 'follow', // Bypasses CORS blocks on Google App Script redirects
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(sessionData)
+            });
+            
+            pageThanks.innerHTML = `
+                <h2 class="mb-3 text-success">Evaluation Complete!</h2>
+                <p class="text-muted">Your responses have been successfully logged. Thank you!</p>
+            `;
+        } catch (error) {
+            console.error("Submission error:", error);
+            pageThanks.innerHTML = `
+                <h3 class="text-danger">Offline Mode</h3>
+                <p>Could not reach the server, but your session is finished.</p>
+            `;
+        }
+    }
+</script>
+</body>
+</html>

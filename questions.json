@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Naturalness",
+    "description": "Rate how human-like and natural the voice sounds."
+  },
+  {
+    "title": "Intelligibility",
+    "description": "How clear and easy to understand was the pronunciation?"
+  },
+  {
+    "title": "Overall Quality",
+    "description": "Rate the overall audio quality (lack of noise, distortion, artifacts)."
+  }
+]
